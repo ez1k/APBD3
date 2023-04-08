@@ -2,10 +2,9 @@
 
 namespace Exercise4.Models.DTO
 {
-    public class AddAnimalDTO
+    public class UpdateAnimalDTO
     {
-        [Required]
-        public int Id { get; set; }
+       
         [Required]
         [MaxLength(200)]
         public string Name { get; set; } = String.Empty;

@@ -1,9 +1,9 @@
-﻿using Exercise4.models;
-using Exercise4.models.DTO;
-using Exercise4.Repositories;
+﻿using Exercise4.Models;
+using Exercise4.Models.DTO;
+using Exercise4.Repository;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
-using System;
 
 
 namespace Exercise4.Controllers
@@ -12,85 +12,127 @@ namespace Exercise4.Controllers
     [ApiController]
     public class AnimalsController : ControllerBase
     {
-        private readonly IConfiguration _configuration;
-        private readonly IAnimalRepository _animalRepository;
-        public AnimalsController(IConfiguration configuration, IAnimalRepository animal)
+        public readonly IConfiguration _configuration;
+        public readonly IAnimalRepository _animalRepository;
+
+        public AnimalsController(IConfiguration configuration, IAnimalRepository animalRepository)
         {
             _configuration = configuration;
-            _animalRepository = animal;
+            _animalRepository = animalRepository;
         }
 
-
+        // GET: api/animals
         [HttpGet]
-        public async Task<IActionResult> GetAll(string? orderBy)
+        public async Task<IActionResult> GetAll(String? orderBy)
         {
-            var orderByValues = new HashSet<string> { "name", "description", "category", "area" };
-            /*if(orderBy is null)
+            HashSet<string> orderByValues = new HashSet<string> { "name", "description", "category", "area" };
+            List<Animal> list = new List<Animal>();
+            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
             {
-                orderBy = "name";
-            }
-            orderBy = orderBy ?? "name";*/
-            orderBy ??= "name";
-
-            if (!orderByValues.Contains(orderBy))
-            {
-                orderBy = "name";
-            }
-
-            var animals = new List<Animal>();
-            using (var connection = new SqlConnection(_configuration.GetConnectionString("Default")))
-            {
-                var command = connection.CreateCommand();
-                command.CommandText = $"SELECT * FROM s22484.dbo.ANIMAL order by {orderBy}";
-                await connection.OpenAsync();
-
-                var reader = await command.ExecuteReaderAsync();
-
-                while (await reader.ReadAsync())
+                orderBy ??= "name";
+                if (!orderByValues.Contains(orderBy))
                 {
-                    animals.Add(new Animal
+                    orderBy = "name";
+                }
+                string query = $"SELECT * FROM Animal ORDER BY {orderBy}";
+                SqlCommand command = conn.CreateCommand();
+                command.CommandText = query;
+                await conn.OpenAsync();
+
+                using (SqlDataReader reader = await command.ExecuteReaderAsync())
+                {
+                    while (await reader.ReadAsync())
                     {
-                        id = reader.GetInt32(0),
-                        name = reader.GetString(1),
-                        description = reader.GetValue(2) == DBNull.Value ? null : reader.GetString(2),
-                        category = reader.GetString(3),
-                        area = reader.GetString(4)
-                    });
+                        list.Add(new Animal
+                        {
+                            Id = reader.GetInt32(0),
+                            Name = reader.GetString(1),
+                            Description = reader.GetValue(2) == DBNull.Value ? null : reader.GetString(2),
+                            Category = reader.GetString(3),
+                            Area = reader.GetString(4)
+                        });
+                    }
                 }
             }
-
-            return Ok(animals);
+            return Ok(list);
         }
+
+
         [HttpPost]
         public async Task<IActionResult> Add(AddAnimalDTO animal)
         {
-
-            if (await _animalRepository.Exists(animal.id))
+            if (await _animalRepository.Exists(animal.Id))
             {
                 return Conflict();
             }
 
-            await _animalRepository.Create(new Animal
+            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
             {
-                id = animal.id,
-                name = animal.name,
-                description = animal.description,
-                category = animal.category,
-                area = animal.area,
-            });
-            return Created($"/api/animals/{animal.id}", animal);
+                string query = "INSERT INTO Animal (id, name, description, category, area) values (@1, @2, @3, @4, @5)";
+                SqlCommand command = conn.CreateCommand();
+                command.CommandText = query;
+                command.Parameters.AddWithValue("@1", animal.Id);
+                command.Parameters.AddWithValue("@2", animal.Name);
+                command.Parameters.AddWithValue("@3", animal.Description);
+                command.Parameters.AddWithValue("@4", animal.Category);
+                command.Parameters.AddWithValue("@5", animal.Area);
+                await conn.OpenAsync();
+                await command.ExecuteNonQueryAsync();
+            }
+            return Created($"api/animals/{animal.Id}", animal);
         }
-         //api/animals/id
-         [HttpPut("{id}")]
-         public async Task<IActionResult> Update(int id, UpdateAnimalDTO animal)
-         {
 
-             return Ok();
-         }
-        /* [HttpDelete("{id}")]
-         public async Task<IActionResult> Delete(int id)
-         {
-             return Ok();
-         }*/
+               
+            // PUT: api/animals/{id}
+            [HttpPut("{id}")]
+            public async Task<IActionResult> Update(int id, UpdateAnimalDTO animal)
+            {
+                if (await _animalRepository.Exists(id))
+                {
+
+                using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
+                {
+                    string query = "Update Animal set name = @2,  description = @3,  category = @4,  area = @5 where id = @1";
+                    SqlCommand command = conn.CreateCommand();
+                    command.CommandText = query;
+                    command.Parameters.AddWithValue("@1", id);
+                    command.Parameters.AddWithValue("@2", animal.Name);
+                    command.Parameters.AddWithValue("@3", animal.Description);
+                    command.Parameters.AddWithValue("@4", animal.Category);
+                    command.Parameters.AddWithValue("@5", animal.Area);
+                    await conn.OpenAsync();
+                    await command.ExecuteNonQueryAsync();
+                }
+                return Ok();
+                }
+
+            return Conflict();
+            }
+
+            // DELETE: api/animals{id}
+            [HttpDelete("{id}")]
+            public async Task<IActionResult> Delete(int id)
+            {
+                if (await _animalRepository.Exists(id))
+                {
+
+                    using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
+                    {
+                        string query = "Delete from Animal  where id = @1";
+                        SqlCommand command = conn.CreateCommand();
+                        command.CommandText = query;
+                        command.Parameters.AddWithValue("@1", id);
+                        await conn.OpenAsync();
+                        await command.ExecuteNonQueryAsync();
+                    }
+                    return Ok();
+                }
+
+                return Conflict();
+            
+            }
+            
+
+        }
+
     }
-}

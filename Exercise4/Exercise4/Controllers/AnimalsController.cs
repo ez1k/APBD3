@@ -1,5 +1,6 @@
 ﻿using Exercise4.models;
 using Exercise4.models.DTO;
+using Exercise4.Repositories;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System;
@@ -7,88 +8,89 @@ using System;
 
 namespace Exercise4.Controllers
 {
-    [Route("api/[Controller]")]
+    [Route("api/[controller]")]
     [ApiController]
-    public class AnimalsController : Controller
+    public class AnimalsController : ControllerBase
     {
         private readonly IConfiguration _configuration;
-        
-        public AnimalsController(IConfiguration configuration)
+        private readonly IAnimalRepository _animalRepository;
+        public AnimalsController(IConfiguration configuration, IAnimalRepository animal)
         {
             _configuration = configuration;
+            _animalRepository = animal;
         }
+
 
         [HttpGet]
         public async Task<IActionResult> GetAll(string? orderBy)
         {
             var orderByValues = new HashSet<string> { "name", "description", "category", "area" };
-            orderBy = orderBy ?? "name";
-            if (orderByValues.Contains(orderBy))
+            /*if(orderBy is null)
             {
-                orderByValues.Add(orderBy);
+                orderBy = "name";
             }
+            orderBy = orderBy ?? "name";*/
+            orderBy ??= "name";
+
+            if (!orderByValues.Contains(orderBy))
+            {
+                orderBy = "name";
+            }
+
             var animals = new List<Animal>();
             using (var connection = new SqlConnection(_configuration.GetConnectionString("Default")))
             {
                 var command = connection.CreateCommand();
-                command.CommandText = $"select * from animal order by {orderBy}";
+                command.CommandText = $"SELECT * FROM s22484.dbo.ANIMAL order by {orderBy}";
                 await connection.OpenAsync();
 
                 var reader = await command.ExecuteReaderAsync();
-                while (await reader.ReadAsync()) {
-                    animals.Add(new Animal(
-                        reader.GetInt32(0), 
-                        reader.GetValue(1) == DBNull.Value ? null : reader.GetString(1),
-                        reader.GetString(2), 
-                        reader.GetString(3),
-                        reader.GetString(4)));
 
+                while (await reader.ReadAsync())
+                {
+                    animals.Add(new Animal
+                    {
+                        id = reader.GetInt32(0),
+                        name = reader.GetString(1),
+                        description = reader.GetValue(2) == DBNull.Value ? null : reader.GetString(2),
+                        category = reader.GetString(3),
+                        area = reader.GetString(4)
+                    });
                 }
             }
-            
-            return Ok();
+
+            return Ok(animals);
         }
         [HttpPost]
         public async Task<IActionResult> Add(AddAnimalDTO animal)
         {
-            using (var connection = new SqlConnection(_configuration.GetConnectionString("Default")))
-            {
-                var command = connection.CreateCommand();
-                command.CommandText = $"select * from animals where id = @1";
-                command.Parameters.AddWithValue("@1", animal.id);
-                await connection.OpenAsync();
-                if (await command.ExecuteScalarAsync() is not null)
-                {
-                    return Conflict;
-                }
 
-            }
-            using (var connection = new SqlConnection(_configuration.GetConnectionString("Default")))
+            if (await _animalRepository.Exists(animal.id))
             {
-                var command = connection.CreateCommand();
-                command.CommandText = $"insert into animal (id, name, description, category, area) values (@1, @2, @3, @4, @5)";
-                command.Parameters.AddWithValue("@1", animal.id);
-                command.Parameters.AddWithValue("@2", animal.name);
-                command.Parameters.AddWithValue("@3", animal.description == null ? DBNull.Value : animal.description);
-                command.Parameters.AddWithValue("@4", animal.category);
-                command.Parameters.AddWithValue("@5", animal.area);
-                await connection.OpenAsync();
-                await command.ExecuteReaderAsync();
-
-                
+                return Conflict();
             }
+
+            await _animalRepository.Create(new Animal
+            {
+                id = animal.id,
+                name = animal.name,
+                description = animal.description,
+                category = animal.category,
+                area = animal.area,
+            });
             return Created($"/api/animals/{animal.id}", animal);
         }
-        //api/animals/id
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, UpdateAnimalDTO animal)
-        {
-            return Ok();
-        }
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            return Ok();
-        }
+         //api/animals/id
+         [HttpPut("{id}")]
+         public async Task<IActionResult> Update(int id, UpdateAnimalDTO animal)
+         {
+
+             return Ok();
+         }
+        /* [HttpDelete("{id}")]
+         public async Task<IActionResult> Delete(int id)
+         {
+             return Ok();
+         }*/
     }
 }

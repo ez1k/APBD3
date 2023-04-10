@@ -106,8 +106,8 @@ namespace Exercise4.Controllers
                 return Ok();
                 }
 
-            return Conflict();
-            }
+            return NotFound();
+        }
 
             // DELETE: api/animals{id}
             [HttpDelete("{id}")]
@@ -128,7 +128,7 @@ namespace Exercise4.Controllers
                     return Ok();
                 }
 
-                return Conflict();
+                return NotFound();
             
             }
             

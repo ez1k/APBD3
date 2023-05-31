@@ -25,114 +25,80 @@ namespace Exercise4.Controllers
         [HttpGet]
         public async Task<IActionResult> GetAll(String? orderBy)
         {
-            HashSet<string> orderByValues = new HashSet<string> { "name", "description", "category", "area" };
-            List<Animal> list = new List<Animal>();
-            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
+            try
             {
-                orderBy ??= "name";
-                if (!orderByValues.Contains(orderBy))
-                {
-                    orderBy = "name";
-                }
-                string query = $"SELECT * FROM Animal ORDER BY {orderBy}";
-                SqlCommand command = conn.CreateCommand();
-                command.CommandText = query;
-                await conn.OpenAsync();
-
-                using (SqlDataReader reader = await command.ExecuteReaderAsync())
-                {
-                    while (await reader.ReadAsync())
-                    {
-                        list.Add(new Animal
-                        {
-                            Id = reader.GetInt32(0),
-                            Name = reader.GetString(1),
-                            Description = reader.GetValue(2) == DBNull.Value ? null : reader.GetString(2),
-                            Category = reader.GetString(3),
-                            Area = reader.GetString(4)
-                        });
-                    }
-                }
+                List<Animal> list = await _animalRepository.GetAll(orderBy);
+                return Ok(list);
             }
-            return Ok(list);
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred while retrieving the animals.");
+            }
         }
 
 
         [HttpPost]
         public async Task<IActionResult> Add(AddAnimalDTO animal)
         {
-            if (await _animalRepository.Exists(animal.Id))
+            try
             {
-                return Conflict();
-            }
+                if (await _animalRepository.Exists(animal.Id))
+                {
+                    return Conflict();
+                }
 
-            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
-            {
-                string query = "INSERT INTO Animal (id, name, description, category, area) values (@1, @2, @3, @4, @5)";
-                SqlCommand command = conn.CreateCommand();
-                command.CommandText = query;
-                command.Parameters.AddWithValue("@1", animal.Id);
-                command.Parameters.AddWithValue("@2", animal.Name);
-                command.Parameters.AddWithValue("@3", animal.Description);
-                command.Parameters.AddWithValue("@4", animal.Category);
-                command.Parameters.AddWithValue("@5", animal.Area);
-                await conn.OpenAsync();
-                await command.ExecuteNonQueryAsync();
+                await _animalRepository.AddAnimal(animal);
+                return Created($"api/animals/{animal.Id}", animal);
             }
-            return Created($"api/animals/{animal.Id}", animal);
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred while adding the animal.");
+            }
         }
 
-               
-            // PUT: api/animals/{id}
-            [HttpPut("{id}")]
-            public async Task<IActionResult> Update(int id, UpdateAnimalDTO animal)
+
+        // PUT: api/animals/{id}
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Update(int id, UpdateAnimalDTO animal)
+        {
+            try
             {
                 if (await _animalRepository.Exists(id))
                 {
-
-                using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
-                {
-                    string query = "Update Animal set name = @2,  description = @3,  category = @4,  area = @5 where id = @1";
-                    SqlCommand command = conn.CreateCommand();
-                    command.CommandText = query;
-                    command.Parameters.AddWithValue("@1", id);
-                    command.Parameters.AddWithValue("@2", animal.Name);
-                    command.Parameters.AddWithValue("@3", animal.Description);
-                    command.Parameters.AddWithValue("@4", animal.Category);
-                    command.Parameters.AddWithValue("@5", animal.Area);
-                    await conn.OpenAsync();
-                    await command.ExecuteNonQueryAsync();
-                }
-                return Ok();
-                }
-
-            return NotFound();
-        }
-
-            // DELETE: api/animals{id}
-            [HttpDelete("{id}")]
-            public async Task<IActionResult> Delete(int id)
-            {
-                if (await _animalRepository.Exists(id))
-                {
-
-                    using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("Default")))
-                    {
-                        string query = "Delete from Animal  where id = @1";
-                        SqlCommand command = conn.CreateCommand();
-                        command.CommandText = query;
-                        command.Parameters.AddWithValue("@1", id);
-                        await conn.OpenAsync();
-                        await command.ExecuteNonQueryAsync();
-                    }
+                    await _animalRepository.UpdateAnimal(id, animal);
                     return Ok();
                 }
 
                 return NotFound();
-            
             }
-            
-
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred while updating the animal.");
+            }
         }
+
+
+        // DELETE: api/animals{id}
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            try
+            {
+                if (await _animalRepository.Exists(id))
+                {
+                    await _animalRepository.DeleteAnimal(id);
+                    return Ok();
+                }
+
+                return NotFound();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, "An error occurred while deleting the animal.");
+            }
+        }
+
+
+    }
 
     }
